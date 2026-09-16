@@ -6,6 +6,10 @@ Every citation tag used in this skill resolves here. Section names in citations 
 Anything tagged `[heuristic]` in this skill has **no** source. It is a working suggestion to be
 tested, and should be presented to the user as such.
 
+Anything tagged `[verified-YYYY-MM-DD]` was established by actually running it on that date, not
+read from documentation. Those claims are the most reliable in the skill, but they are also the
+first to rot — re-run them rather than trusting them on a new machine.
+
 ## Repositories and documentation
 
 | Tag | Document | URL |
@@ -16,8 +20,17 @@ tested, and should be presented to the user as such.
 | `GTM-README` | GraphTsetlinMachine | https://github.com/cair/GraphTsetlinMachine |
 | `GTM-NoisyXORDemo` | `examples/NoisyXORDemo.py` — verified GraphTM API reference | https://github.com/cair/GraphTsetlinMachine/blob/master/examples/NoisyXORDemo.py |
 | `GTM-CIFAR10Demo` | `examples/CIFAR10Demo.py` — verified image-graph construction | https://github.com/cair/GraphTsetlinMachine/blob/master/examples/CIFAR10Demo.py |
+| `TM-Reference-Impl` | `cair/TsetlinMachine/MultiClassTsetlinMachine.pyx` — CAIR's reference Cython implementation; the authority on feedback tables, clause output and TA states | https://github.com/cair/TsetlinMachine/blob/master/MultiClassTsetlinMachine.pyx |
+| `TM-Book-Ch1` | *An Introduction to Tsetlin Machines*, Chapter 1 (revised 7/11/22) — the algorithm in Memorize/Forget vocabulary, with worked vehicle example | https://tsetlinmachine.org/wp-content/uploads/2022/11/Tsetlin_Machine_Book_Chapter_One_Revised.pdf |
+| `TM-Book-Ch2` | Chapter 2, *Classification* — mathematical analysis of single-literal, two-literal and two-rule learning as stochastic processes; explicitly optional | https://tsetlinmachine.org/wp-content/uploads/2022/11/Tsetlin_Machine_Book_Chapter_2.pdf |
+| `TM-Book-Ch4` | Chapter 4, *Convolution* | https://tsetlinmachine.org/wp-content/uploads/2023/12/Tsetlin_Machine_Book_Chapter_4_Convolution.pdf |
+| `TM-Book-Ch7` | Chapter 7, *Confidence, Trustworthiness, Composites* | https://tsetlinmachine.org/wp-content/uploads/2023/10/Tsetlin_Machine_Book_Chapter_7_Confidence_Trustworthiness_Composites.pdf |
 | `TM-Book` | *An Introduction to Tsetlin Machines*, Ole-Christoffer Granmo — free chapters | https://tsetlinmachine.org/ |
 | `TM-Book-Code` | Notebooks accompanying the book, incl. `Chapter_1.ipynb` (car/plane worked example) | https://github.com/cair/TsetlinMachineBook |
+| `TMU-Examples` | `examples/classification/` — a dozen runnable TMU demos; the de-facto API docs | https://github.com/cair/tmu/tree/main/examples/classification |
+| `TMU-MNISTDemo` | `examples/classification/MNISTDemo.py` — canonical TMU training loop | https://github.com/cair/tmu/blob/main/examples/classification/MNISTDemo.py |
+| `TMU-InterpretabilityDemo` | `examples/classification/InterpretabilityDemo.py` — verified clause extraction with precision/recall | https://github.com/cair/tmu/blob/main/examples/classification/InterpretabilityDemo.py |
+| `Multi-HGTM-tsetlin` | `MultiHGTM/tsetlin.py` — a published project's 253-line pure-numpy MultiClassTsetlinMachine | https://github.com/AnwarDebes/Multi-HGTM/blob/main/MultiHGTM/tsetlin.py |
 | `TMU-PPExample` | `CIFAR10ColorThermometerScoring.py`, a worked TMU `TMClassifier` script in the CAIR repo for the TMComposites paper [arXiv:2309.04801] | https://github.com/cair/Plug-and-Play-Collaboration-Between-Specialized-Tsetlin-Machines/blob/main/CIFAR10ColorThermometerScoring.py |
 | `IEEE-TM-accelerator-2025` | *An All-digital 8.6-nJ/Frame 65-nm Tsetlin Machine Image Classification Accelerator* — cites `tmu/models/classification/coalesced_classifier.py` directly | https://arxiv.org/html/2501.19347 |
 | `TextTM-README` | TextUnderstandingTsetlinMachine — hyperparameter notes | https://github.com/cair/TextUnderstandingTsetlinMachine |

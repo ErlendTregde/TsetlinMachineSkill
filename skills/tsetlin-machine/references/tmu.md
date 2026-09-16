@@ -17,6 +17,35 @@ pip install git+https://github.com/cair/tmu.git@dev
 
 [TMU-README §Installation]
 
+**Install from git, not PyPI — this matters more than it looks.** `pip install tmu` gives you
+0.8.3, published 2024-03-25, which predates numpy 2.0 (June 2024). That release calls
+`np.uint32(~0)` while building the clause bank, which numpy 2.x refuses:
+
+```
+OverflowError: Python integer -1 out of bounds for uint32
+  .../tmu/clause_bank/clause_bank.py:136 in initialize_clauses
+```
+
+`main` fixed it — the source now reads `np.array(~0).astype(np.uint32)` with a comment naming
+numpy>=2.0 — but **there has been no PyPI release since**, so the fix only reaches you through git.
+Verified 2026-09-14: a git install runs fine under numpy 2.4.6. If you are stuck on the PyPI
+package for some reason, pin `numpy<2` instead. [verified-2026-09-14]
+
+**Do not pass `seed=0` — it hangs `fit()` forever.** Verified 2026-09-14 on both Windows and
+Debian 13, with the git build: `TMClassifier(..., seed=0)` spins indefinitely inside
+`cb_type_i_feedback` (`clause_bank.py:248`, reached via `fit -> _fit_sample -> mechanism_feedback`),
+on datasets as small as 200x8 with 10 clauses. Seeds 1-7, 42, and omitting `seed` entirely all
+train normally in ~2s to 100% on noisy XOR. It looks like a falsy-zero check treating `0` as
+"unset". Use `seed=42` or leave it out; if a TMU run hangs with no CPU progress, check the seed
+before suspecting your data. [verified-2026-09-14]
+
+This is not documented anywhere upstream and has not been reported as an issue, so expect no
+warning from the README, the demos, or a search — you will only find it by hitting it.
+
+This is also the single best argument for the smoke test in SKILL.md Step 2: the failure is a
+silent hang, not an exception, and it is indistinguishable from "the model is just slow" unless you
+have a known-good baseline run to compare against.
+
 **Prerequisites that trip people up** [TMU-README §Installation]:
 
 - Windows: MSVC build tools, installing the `Workloads → Desktop development with C++` package.
@@ -67,9 +96,38 @@ finished.
 
 ## API
 
-The `tmu` README itself has no worked code examples. The API below is taken from a real script in
-a CAIR-maintained companion repo for the TMComposites paper [arXiv:2309.04801], not from memory
-[TMU-PPExample]:
+The README has no API documentation, but the repo ships a dozen runnable demos in
+`examples/classification/` — `MNISTDemo.py`, `MNISTConvolutionDemo.py`, `MNISTDemoCoalesced.py`,
+`XORDemo.py`, `IMDbTextCategorizationDemo.py`, `InterpretabilityDemo.py` and more
+[TMU-Examples]. **Those demos are the documentation.** Copy their shape rather than improvising.
+
+The canonical training loop, from `examples/classification/MNISTDemo.py` [TMU-MNISTDemo]:
+
+```python
+import numpy as np
+from tmu.models.classification.vanilla_classifier import TMClassifier
+
+tm = TMClassifier(
+    number_of_clauses=2000,
+    T=5000,
+    s=10.0,
+    max_included_literals=32,
+    platform="CPU",          # "CPU" | "CPU_sparse" | "CUDA"
+    weighted_clauses=True,
+    seed=42,
+)
+
+for epoch in range(60):
+    tm.fit(x_train.astype(np.uint32), y_train.astype(np.uint32))
+    acc = 100 * (tm.predict(x_test) == y_test).mean()
+```
+
+Two things that bite: **X and Y must be `uint32`**, and `fit` has no `epochs` argument — you write
+the loop. TMU also ships datasets, e.g. `from tmu.data import MNIST; data = MNIST().get()`
+[TMU-MNISTDemo].
+
+A second worked configuration, from a CAIR companion repo for the TMComposites paper
+[arXiv:2309.04801], showing the GPU/convolution case [TMU-PPExample]:
 
 ```python
 from tmu.models.classification.vanilla_classifier import TMClassifier
@@ -113,6 +171,67 @@ Confirmed, real differences from pyTsetlinMachine's `MultiClassTsetlinMachine(cl
 - `patch_dim` is specific to the convolutional/image case in this example. Do not assume it exists
   or is required for plain tabular classification — that was not verified, since only an image
   script was found. [heuristic]
+
+## Reading the clauses — TMU's convention is a THIRD one
+
+This is the highest-risk part of using TMU, because the call *looks* like pyTsetlinMachine's and
+means something different. Compare all three:
+
+```
+pyTsetlinMachine:  tm.ta_action(class, clause, literal)
+TMU:               tm.get_ta_action(clause, ta, the_class=..., polarity=...)   <- clause FIRST
+GraphTsetlinMachine: tm.ta_action(layer, clause, literal)                      <- depth, not class
+```
+
+Swap the first two arguments between pyTM and TMU and nothing raises — you get a clause listing
+that is quietly wrong. Check which library you are in before writing the extraction loop.
+
+The other difference: pyTsetlinMachine encodes clause polarity in the **even/odd clause index**,
+while TMU takes an explicit `polarity` argument (`0` = positive/votes-for, `1` = negative/votes-
+against) and you iterate `range(number_of_clauses // 2)` for each polarity.
+
+Verbatim shape from `examples/classification/InterpretabilityDemo.py` [TMU-InterpretabilityDemo]:
+
+```python
+precision = tm.clause_precision(the_class, polarity, X_test, Y_test)
+recall    = tm.clause_recall(the_class, polarity, X_test, Y_test)
+
+for j in range(number_of_clauses // 2):
+    print("Clause #%d W:%d P:%.2f R:%.2f" % (
+        j, tm.get_weight(the_class, polarity, j), precision[j], recall[j]), end=' ')
+    literals = []
+    for k in range(number_of_features * 2):
+        if tm.get_ta_action(j, k, the_class=the_class, polarity=polarity):
+            if k < number_of_features:
+                literals.append("x%d" % k)
+            else:
+                literals.append("¬x%d" % (k - number_of_features))
+    print(" ∧ ".join(literals))
+```
+
+Literal indexing matches pyTsetlinMachine: `k < n_features` is `x_k`, `k >= n_features` is
+`¬x_{k-n_features}`. That part does transfer.
+
+### Why this is worth more than pyTsetlinMachine's clause dump
+
+TMU gives you per-clause quality metrics, which turn a wall of conjunctions into something you can
+rank and filter — the difference between "here are 2000 rules" and "here are the five that matter":
+
+| Call | What it gives you |
+|---|---|
+| `clause_precision(the_class, polarity, X, Y)` | per-clause precision — how often this rule is right when it fires |
+| `clause_recall(the_class, polarity, X, Y)` | per-clause recall — how much of the class it covers |
+| `get_weight(the_class, polarity, clause)` | learned clause weight (with `weighted_clauses=True`) |
+| `get_ta_state(clause, ta, the_class=, polarity=)` | raw automaton state — how firmly a literal is included |
+| `literal_clause_frequency()` | how often each literal appears across clauses |
+| `clause_co_occurrence(X, percentage=True)` | which clauses fire together |
+
+[TMU-InterpretabilityDemo]
+
+**Sort clauses by precision and show the user the top few with their support**, rather than dumping
+every clause. A clinician or domain expert wants the five rules that carry the decision, not 2000
+conjunctions — and precision/recall is exactly what makes that selection defensible instead of
+arbitrary. [heuristic]
 
 Import path confirmed elsewhere in the wild too: a hardware-accelerator paper cites TMU's coalesced
 classifier module directly at

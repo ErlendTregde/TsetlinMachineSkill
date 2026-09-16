@@ -3,12 +3,15 @@ Smoke test: confirm a Tsetlin Machine install actually works before touching rea
 
 Run this FIRST. If it fails, the problem is the environment, not the model.
 
-    python smoke_test.py pytm     # pyTsetlinMachine, CPU
+    python smoke_test.py tmu      # TMU, CPU  <- start here, TMU is the default library
+    python smoke_test.py pytm     # pyTsetlinMachine, CPU (will not build on Windows)
     python smoke_test.py graphtm  # GraphTsetlinMachine, needs CUDA
 
-Both tasks are Noisy XOR, the demo each library ships.
+All three tasks are Noisy XOR, the demo each library ships.
 
 Expected results:
+  tmu      -> accuracy near 100% in a couple of seconds
+             (a HANG here almost certainly means seed=0; see ../references/tmu.md)
   pytm     -> accuracy near 100%
              (the pyTsetlinMachine README reports 100% on its Noisy XOR demo, with
               MultiClassTsetlinMachine(10, 15, 3.9, boost_true_positive_feedback=0),
@@ -50,6 +53,44 @@ def smoke_pytm():
     acc = 100.0 * (tm.predict(X_test) == Y_test).mean()
     print(f"pyTsetlinMachine Noisy XOR accuracy: {acc:.2f}%")
     print("Expected: near 100%. Much lower means something is wrong with the install.")
+    return acc
+
+
+def smoke_tmu(timeout_s=120):
+    """TMU noisy XOR. Expect ~100% in a couple of seconds.
+
+    A watchdog is wired up deliberately: TMU's characteristic failure is a silent HANG, not an
+    exception, so a plain run gives you no way to tell "broken" from "slow". The known trigger is
+    seed=0 -- see ../references/tmu.md -- but any hang here means stop and fix the environment
+    before you touch real data.
+    """
+    import faulthandler
+    from tmu.models.classification.vanilla_classifier import TMClassifier
+
+    X_train, _, Y_train = make_noisy_xor(seed=0)
+    X_test, Y_test, _ = make_noisy_xor(seed=1)  # clean labels for evaluation
+
+    # seed=42, never 0: seed=0 spins forever inside cb_type_i_feedback.
+    tm = TMClassifier(
+        number_of_clauses=10,
+        T=10,
+        s=3.0,
+        platform="CPU",
+        boost_true_positive_feedback=0,
+        seed=42,
+    )
+
+    faulthandler.dump_traceback_later(timeout_s, exit=True)
+    try:
+        for _ in range(20):
+            # TMU has no epochs argument, and both arrays must be uint32.
+            tm.fit(X_train.astype(np.uint32), Y_train.astype(np.uint32))
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+
+    acc = 100.0 * (tm.predict(X_test) == Y_test).mean()
+    print(f"TMU Noisy XOR accuracy: {acc:.2f}%")
+    print("Expected: near 100%. If this hung instead, check seed != 0 before blaming your data.")
     return acc
 
 
@@ -158,6 +199,8 @@ if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "pytm"
     if which == "pytm":
         smoke_pytm()
+    elif which == "tmu":
+        smoke_tmu()
     elif which == "graphtm":
         smoke_graphtm()
     else:

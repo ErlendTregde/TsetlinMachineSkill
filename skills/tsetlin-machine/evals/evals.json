@@ -5,23 +5,21 @@
       "id": 0,
       "name": "tabular-clinical-interpretability",
       "prompt": "I've got a csv of patient data at D:\\projects\\TsetlinMachineSkill\\tsetlin-machine-workspace\\inputs\\patients.csv - 30 numeric columns, 500 rows, binary outcome in the readmitted_30d column. A colleague said tsetlin machines are the thing when you need to actually explain the model to a clinician. Can you write me something that works?",
-      "expected_output": "A runnable script that booleanizes the continuous columns explicitly, trains a pyTsetlinMachine MultiClassTsetlinMachine (correct positional constructor), reports held-out accuracy against the majority-class baseline, and prints the learned clauses translated back into the user's real column names. T and s stated as starting points. Hidden ground truth in the data: (hba1c > 8.0 AND age > 65) OR (n_prior_admissions >= 3) OR (egfr < 45 AND albumin < 3.4), with 8% label noise, 23.8% positive rate.",
+      "expected_output": "A runnable, actually-executed TMU script: environment sanity-checked first, low-cardinality columns booleanized so '>= 3' is expressible, T/s searched, clauses ranked by precision and printed in real column names, accuracy set against a baseline and a reference model, limits stated. Hidden ground truth: (hba1c > 8.0 AND age > 65) OR (n_prior_admissions >= 3) OR (egfr < 45 AND albumin < 3.4), 8% label noise, 23.8% positive rate.",
       "files": [
         "inputs/patients.csv"
       ],
       "assertions": [
-        "Uses a real Tsetlin Machine library with the correct constructor signature (pyTsetlinMachine MultiClassTsetlinMachine(clauses, T, s) positionally, or TMU TMClassifier with keyword args) rather than an invented or hallucinated API",
-        "Booleanizes the continuous columns explicitly with a named method (Binarizer, thresholding, thermometer encoding) instead of feeding raw floats to the TM",
-        "Prints or states the feature count before and after booleanization, so the user can see how many Boolean features resulted",
-        "Holds out a test set and reports test accuracy, not training accuracy",
-        "Reports the majority-class baseline (~76%) or another comparison, so accuracy on this imbalanced outcome is not read as impressive on its own",
-        "Prints the learned clauses, not only accuracy - the script delivers interpretability rather than just a score",
-        "Translates clause literals back into the user's real column names and threshold values (e.g. 'hba1c > 8.0'), not raw literal indices like 'feature 147'",
-        "Handles negated literals correctly, using the n_features offset to distinguish x_k from NOT x_k",
-        "States T and s as starting points to be tuned, with a suggested search range, rather than presenting single silently-chosen values as final",
-        "Excludes the patient_id column from the model features",
-        "Is honest about what was actually run: if the library did not install, says so rather than reporting accuracy figures it never measured",
-        "The delivered clause output recovers at least one of the hidden ground-truth conditions (hba1c high AND age high; n_prior_admissions >= 3; egfr low AND albumin low), or the script is structured so it would surface them when run"
+        "Uses a real Tsetlin Machine library (TMU TMClassifier or pyTsetlinMachine) for the delivered model, rather than hand-rolling its own TM implementation",
+        "Treats T and s as values to be searched or justified, rather than leaving silent constructor defaults and never mentioning them",
+        "The delivered clause output recovers a hidden ground-truth condition: n_prior_admissions >= 3 (or > 2), OR hba1c high AND age high, OR egfr low AND albumin low",
+        "Does NOT conclude that the TM library is broken/unusable on this machine. (The library works; passing seed=0 makes TMU's fit() hang forever, so a run that blames the platform or the library has misdiagnosed a one-parameter bug.)",
+        "Avoids the seed=0 trap: either passes a non-zero seed, omits seed entirely, or explicitly identifies seed=0 as the cause if it hits a hang",
+        "Validates the environment before trusting results on the real data - runs a smoke test, a known-good demo, or an equivalent sanity check, rather than going straight at the patient CSV",
+        "Handles low-cardinality integer columns so their thresholds are usable: n_prior_admissions (6 distinct values) must end up with a cut that makes '>= 3' expressible, not the collapsed quantile cuts [0,1,1,2]",
+        "Ranks or filters clauses by a quality measure (clause_precision, recall, weight, or per-rule support) and shows a readable subset, rather than dumping every clause or showing an arbitrary few",
+        "Gives the reader a way to judge whether the TM's accuracy is actually any good - a majority-class baseline and/or a reference model such as logistic regression or a random forest on the same split",
+        "Does not overclaim: states the limits of the result (small test set, class imbalance, correlation vs causation, or selection effects in the displayed clauses) rather than presenting the numbers as settled"
       ]
     }
   ]

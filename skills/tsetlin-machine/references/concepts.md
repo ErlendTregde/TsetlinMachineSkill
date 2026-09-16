@@ -7,7 +7,7 @@ section of the `cair/TsetlinMachine` README [TM-README], which condenses the ori
 ## Contents
 
 1. Classification
-2. Learning: Type I and Type II feedback
+2. Learning: the Tsetlin Automaton, Type I and Type II feedback
 3. Resource allocation and T
 4. What the learning curve looks like
 5. The architecture family
@@ -32,7 +32,10 @@ polarity and half negative [TM-README §Classification].
 
 **Decision.** Clause outputs are summed — positives minus negatives — and thresholded with the unit
 step function. Classification is therefore a majority vote, with positive clauses voting for y=1
-and negative clauses for y=0 [TM-README §Classification].
+and negative clauses for y=0 [TM-README §Classification]. For more than two classes there is one
+such vote sum per class and the prediction is the `argmax`; note that the reference implementation
+*trains* pairwise, picking one contrasting class at random per example rather than updating all of
+them [TM-Reference-Impl:236-238].
 
 **Worked example (XOR).** The classifier `x1·¬x2 + ¬x1·x2 − x1·x2 − ¬x1·¬x2` captures the XOR
 relation [TM-README §Classification]. This is the single most useful *formula-level* example to
@@ -49,9 +52,35 @@ framing over XOR when a user asks "explain this to me" rather than "show me the 
 
 ## 2. Learning
 
-Each clause is composed by a **team of Tsetlin Automata**, one per literal, each deciding to
-*Include* or *Exclude* that literal in the clause [TM-README §Learning]. Learning means these
-automata moving between Include and Exclude states based on reinforcement. There is no gradient.
+### What a Tsetlin Automaton actually is
+
+A Tsetlin Automaton is a **finite-state counter** — not a neuron, not a weight.
+
+It has `2N` states. States `1..N` mean **Exclude**, states `N+1..2N` mean **Include**
+[TM-Reference-Impl:168-172]. Reward pushes it deeper into its current half; penalty pushes it toward
+the boundary and eventually across. That is the entire mechanism — a literal enters or leaves a
+clause by a counter crossing the midpoint.
+
+Two consequences worth understanding before writing any code:
+
+- **Depth is confidence.** An automaton at state `2N` and one at `N+1` both say *Include*, but the
+  first needs `N` penalties to change its mind and the second needs one. This is why `number_of_state_bits`
+  is a real hyperparameter: it sets how much evidence a decision accumulates before it becomes hard
+  to overturn. Chapter 2 of the book analyses single-literal learning as a stochastic process and
+  shows the learning outcome gets more accurate as memory depth increases [TM-Book-Ch2].
+- **Saturation is a feature.** States clamp at 1 and `2N`, so a firmly-learned literal stops
+  responding to further reinforcement rather than drifting.
+
+Each clause has one automaton **per literal** — so `2 x n_features` of them, since every feature is
+paired with its negation. Automata are initialised straddling the boundary, at `N` or `N+1`
+[TM-Reference-Impl:71]; the book notes the choice does not matter, because the machine is
+self-correcting in a way neural-network initialisation is not [TM-Book-Ch1].
+
+Learning means these automata moving between Include and Exclude states based on reinforcement.
+There is no gradient, no loss surface, and nothing to differentiate.
+
+The exact feedback tables and the rest of the implementable algorithm are in
+`from-scratch.md`.
 
 A TM learns **online**, one training example at a time [TM-README §Learning].
 
@@ -89,7 +118,10 @@ when you shouldn't have, find a literal that would have stopped you".
 ## 3. Resource allocation and T
 
 For any input, the probability of reinforcing a clause gradually drops to zero as the clause vote
-sum `v` approaches a user-set target `T` for y=1, or −T for y=0 [TM-README §Learning].
+sum `v` approaches a user-set target `T` for y=1, or −T for y=0 [TM-README §Learning]. Concretely,
+`v` is first clipped to `[-T, T]` and a clause of the target class is then given feedback with
+probability `(T - v) / 2T` [TM-Reference-Impl:128-131,262]. The book calls `T` the **Vote Margin**
+and works the same formula through with `T = 2` [TM-Book-Ch1].
 
 An unreinforced clause gives no feedback to its automata, so they are left unchanged. In the
 extreme, when `v` meets or exceeds `T` — the machine has successfully recognised the input — no
