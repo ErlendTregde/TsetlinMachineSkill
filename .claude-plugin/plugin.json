@@ -1,0 +1,11 @@
+{
+  "name": "tsetlin-machine",
+  "version": "0.1.0",
+  "description": "Write, debug and explain Tsetlin Machine and Graph Tsetlin Machine code (pyTsetlinMachine, TMU, GraphTsetlinMachine).",
+  "author": {
+    "name": "Erlend Tregde"
+  },
+  "repository": "https://github.com/ErlendTregde/TsetlinMachineSkill",
+  "license": "MIT",
+  "keywords": ["tsetlin-machine", "tmu", "graphtm", "interpretable-ai"]
+}

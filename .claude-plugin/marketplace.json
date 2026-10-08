@@ -1,0 +1,14 @@
+{
+  "name": "tsetlin-machine-skill",
+  "description": "Tsetlin Machine skill for Claude Code",
+  "owner": {
+    "name": "Erlend Tregde"
+  },
+  "plugins": [
+    {
+      "name": "tsetlin-machine",
+      "source": "./",
+      "description": "Write, debug and explain Tsetlin Machine and Graph Tsetlin Machine code (pyTsetlinMachine, TMU, GraphTsetlinMachine)."
+    }
+  ]
+}
